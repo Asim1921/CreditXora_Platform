@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s http://127.0.0.1:8000/health)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:3000/)",
+      "Read(//c/Program Files \\\\\\(x86\\\\\\)/Microsoft/Edge/Application/**)",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Bash(npx eslint *)",
+      "Bash(node -e ' *)",
+      "Bash(npm start *)",
+      "Bash(docker exec *)",
+      "Bash(rm -rf backend/var/uploads/*)",
+      "Bash(./.venv/Scripts/python.exe -)",
+      "Bash(docker exec creditxora-mongo mongosh --quiet --eval ' *)",
+      "Bash(sed 's|^\\\\./||')",
+      "Bash(git init *)",
+      "Bash(cd \"D:/Work/Ryan_US_Projects/brand_Website\" && ls -d .git 2>/dev/null && rm -rf .git && echo \"removed the .git directory I created for the ignore check\" && ls -a | head -12)"
+    ],
+    "additionalDirectories": [
+      "D:\\Work\\Ryan_US_Projects\\brand_Website\\.git"
+    ]
+  }
+}

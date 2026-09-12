@@ -1,0 +1,188 @@
+@import "tailwindcss";
+
+/* ==========================================================================
+   Creditxora design tokens
+   Palette derived from the brand mark: deep navy + a confident green accent.
+   ========================================================================== */
+
+@theme {
+  /* Navy — the trust colour. Used for surfaces, headings and the primary UI. */
+  --color-navy-50: #eef3fa;
+  --color-navy-100: #d7e3f4;
+  --color-navy-200: #b3c8e7;
+  --color-navy-300: #85a5d4;
+  --color-navy-400: #5480bc;
+  --color-navy-500: #3462a1;
+  --color-navy-600: #254d85;
+  --color-navy-700: #1c3c6b;
+  --color-navy-800: #16305b;
+  --color-navy-900: #112445;
+  --color-navy-950: #0a1730;
+
+  /* Green — progress, confirmation, the accent in the mark. */
+  --color-brand-50: #ecfaf0;
+  --color-brand-100: #d2f4dd;
+  --color-brand-200: #a6e8bc;
+  --color-brand-300: #6fd695;
+  --color-brand-400: #3fc072;
+  --color-brand-500: #22a757;
+  --color-brand-600: #16873c;
+  --color-brand-700: #146e33;
+  --color-brand-800: #13572b;
+  --color-brand-900: #103f21;
+
+  /* Warm neutral ground — softer than pure grey against the navy. */
+  --color-sand-50: #fafaf8;
+  --color-sand-100: #f4f5f2;
+  --color-sand-200: #e8eae5;
+
+  --color-ink: #0d1b2e;
+  --color-muted: #5b6b82;
+
+  --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+
+  --radius-4xl: 2rem;
+
+  --shadow-soft: 0 1px 2px rgb(16 36 69 / 0.04), 0 8px 24px -8px rgb(16 36 69 / 0.10);
+  --shadow-lift: 0 2px 4px rgb(16 36 69 / 0.04), 0 18px 40px -12px rgb(16 36 69 / 0.18);
+  --shadow-glow: 0 20px 60px -20px rgb(34 167 87 / 0.45);
+
+  --animate-fade-up: fade-up 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-fade-in: fade-in 0.5s ease both;
+  --animate-marquee: marquee 38s linear infinite;
+}
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  border-color: color-mix(in oklab, var(--color-navy-200) 55%, transparent);
+}
+
+html {
+  scroll-behavior: smooth;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  background: #ffffff;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  letter-spacing: -0.022em;
+  text-wrap: balance;
+}
+
+p { text-wrap: pretty; }
+
+::selection {
+  background: var(--color-brand-200);
+  color: var(--color-navy-900);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-brand-500);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Thin, unobtrusive scrollbars inside app panels. */
+.scroll-slim {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-navy-200) transparent;
+}
+.scroll-slim::-webkit-scrollbar { width: 8px; height: 8px; }
+.scroll-slim::-webkit-scrollbar-thumb {
+  background: var(--color-navy-200);
+  border-radius: 999px;
+}
+
+/* ==========================================================================
+   Composite utilities
+   ========================================================================== */
+
+@utility container-page {
+  width: 100%;
+  margin-inline: auto;
+  max-width: 80rem;
+  padding-inline: 1.25rem;
+  @media (min-width: 768px) { padding-inline: 2rem; }
+}
+
+/* Gradient wash used behind the hero and dark CTA bands. */
+@utility bg-navy-mesh {
+  background-color: var(--color-navy-900);
+  background-image:
+    radial-gradient(60rem 40rem at 12% -10%, rgb(34 167 87 / 0.22), transparent 60%),
+    radial-gradient(50rem 34rem at 92% 8%, rgb(52 98 161 / 0.42), transparent 62%),
+    radial-gradient(40rem 30rem at 60% 110%, rgb(20 110 51 / 0.30), transparent 60%);
+}
+
+@utility bg-grid-faint {
+  background-image:
+    linear-gradient(to right, rgb(255 255 255 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(255 255 255 / 0.045) 1px, transparent 1px);
+  background-size: 64px 64px;
+}
+
+@utility text-gradient-brand {
+  background: linear-gradient(100deg, var(--color-brand-300), var(--color-brand-500) 60%, var(--color-brand-200));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Frosted card used over the dark hero. */
+@utility glass-card {
+  background: rgb(255 255 255 / 0.07);
+  border: 1px solid rgb(255 255 255 / 0.14);
+  backdrop-filter: blur(14px);
+}
+
+@utility card-surface {
+  background: #ffffff;
+  border: 1px solid var(--color-navy-100);
+  border-radius: 1rem;
+  box-shadow: var(--shadow-soft);
+}
+
+/* Staggered reveal for grids — index set via style={{ '--i': n }}. */
+@utility stagger {
+  animation: var(--animate-fade-up);
+  animation-delay: calc(var(--i, 0) * 70ms);
+}
