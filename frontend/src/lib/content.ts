@@ -62,7 +62,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "hard-inquiry-review",
-    title: "Hard Inquiry Review",
+    title: "Hard Inquiry Removal",
     short:
       "Examine the inquiries on your reports and identify any you did not authorise.",
     icon: "Search",
@@ -86,7 +86,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "collection-account-review",
-    title: "Collection Account Review",
+    title: "Collection Account Removal",
     short:
       "Review collection entries for accuracy, ownership, balances and reporting timelines.",
     icon: "ReceiptText",
@@ -111,7 +111,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "charge-off-review",
-    title: "Charge-Off Review",
+    title: "Charge-Off Removal",
     short:
       "Check charged-off accounts for accurate balances, dates and duplicate reporting.",
     icon: "FileX2",
@@ -135,7 +135,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "late-payment-review",
-    title: "Late Payment Review",
+    title: "Late Payment Removal",
     short:
       "Verify reported late payments against your own records and statements.",
     icon: "CalendarClock",
@@ -159,7 +159,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "repossession-review",
-    title: "Repossession Review",
+    title: "Repossession Removal",
     short:
       "Review repossession entries for accurate balances, notices and reporting dates.",
     icon: "Car",
@@ -183,7 +183,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "medical-collection-review",
-    title: "Medical Collection Review",
+    title: "Medical Collection Removal",
     short:
       "Review medical collections against current reporting rules and insurance records.",
     icon: "Stethoscope",
@@ -232,7 +232,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "duplicate-account-review",
-    title: "Duplicate Account Review",
+    title: "Duplicate Account Removal",
     short:
       "Find the same debt reported more than once and document the overlap.",
     icon: "Copy",
@@ -281,7 +281,7 @@ export const SERVICES: Service[] = [
   },
   {
     slug: "student-loan-reporting-review",
-    title: "Student Loan Reporting Review",
+    title: "Student Loan Reporting Removal",
     short:
       "Check how servicer transfers, deferments and forbearances are being reported.",
     icon: "GraduationCap",

@@ -30,3 +30,7 @@ Thumbs.db
 # --- Logs -------------------------------------------------------------------
 *.log
 npm-debug.log*
+
+# Local backups taken during the 2026-09-12 incident response
+.env.bak.*
+*.bak.*

@@ -1,14 +1,73 @@
 services:
+  backend:
+    build:
+      context: ./backend
+    container_name: creditxora-backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: development
+      MONGODB_URI: mongodb://${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}:${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}@mongo:27017/?authSource=admin
+      MONGODB_DB: creditxora
+      CORS_ORIGINS: http://localhost:33333,http://127.0.0.1:33333
+      SECRET_KEY: ${SECRET_KEY:?Set SECRET_KEY in .env}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-true}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@creditxora.com}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in .env}
+    ports:
+      # Loopback only: the frontend reaches the API over the compose network
+      # via its /api/v1 rewrite, so nothing needs this port from outside.
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - creditxora-upload-data:/app/var/uploads
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: creditxora-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+    ports:
+      - "33333:3000"
+    depends_on:
+      backend:
+        condition: service_started
+
   mongo:
     image: mongo:7
     container_name: creditxora-mongo
     restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}
     ports:
-      - "27017:27017"
+      # Loopback only. This port was published to 0.0.0.0 with no authentication
+      # and the database was dropped by a ransomware bot on 2026-09-12.
+      - "127.0.0.1:27017:27017"
     volumes:
       - creditxora-mongo-data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      test:
+        - CMD
+        - mongosh
+        - --quiet
+        - -u
+        - ${MONGO_ROOT_USERNAME}
+        - -p
+        - ${MONGO_ROOT_PASSWORD}
+        - --authenticationDatabase
+        - admin
+        - --eval
+        - db.adminCommand('ping')
       interval: 10s
       timeout: 5s
       retries: 5
@@ -18,13 +77,18 @@ services:
     container_name: creditxora-mongo-ui
     restart: unless-stopped
     ports:
-      - "8081:8081"
+      - "127.0.0.1:8081:8081"
     environment:
       ME_CONFIG_MONGODB_SERVER: mongo
-      ME_CONFIG_BASICAUTH: "false"
+      ME_CONFIG_MONGODB_ADMINUSERNAME: ${MONGO_ROOT_USERNAME:?Set MONGO_ROOT_USERNAME in .env}
+      ME_CONFIG_MONGODB_ADMINPASSWORD: ${MONGO_ROOT_PASSWORD:?Set MONGO_ROOT_PASSWORD in .env}
+      ME_CONFIG_BASICAUTH: "true"
+      ME_CONFIG_BASICAUTH_USERNAME: ${MONGO_EXPRESS_USER:?Set MONGO_EXPRESS_USER in .env}
+      ME_CONFIG_BASICAUTH_PASSWORD: ${MONGO_EXPRESS_PASSWORD:?Set MONGO_EXPRESS_PASSWORD in .env}
     depends_on:
       mongo:
         condition: service_healthy
 
 volumes:
   creditxora-mongo-data:
+  creditxora-upload-data:

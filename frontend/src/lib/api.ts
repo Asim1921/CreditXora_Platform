@@ -6,8 +6,7 @@
  * working through a long form is never dumped back to the sign-in screen.
  */
 
-export const API_BASE =
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000";
+export const API_BASE = process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "";
 
 const API_PREFIX = "/api/v1";
 
