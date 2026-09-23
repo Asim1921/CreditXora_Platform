@@ -62,6 +62,9 @@ export function SiteHeader() {
             <Link href="/login" className="font-semibold transition hover:text-white">
               Client sign in
             </Link>
+            <Link href="/signup" className="font-semibold transition hover:text-white">
+              Create account
+            </Link>
           </div>
         </div>
       </div>
@@ -260,6 +263,11 @@ export function SiteHeader() {
               >
                 {user ? "Go to my dashboard" : "Client sign in"}
               </ButtonLink>
+              {user ? null : (
+                <ButtonLink href="/signup" variant="ghost" className="w-full">
+                  Create an account
+                </ButtonLink>
+              )}
             </div>
           </div>
         </div>

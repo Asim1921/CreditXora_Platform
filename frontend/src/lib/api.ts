@@ -159,6 +159,7 @@ export const api = {
     request<T>(path, { method: "POST", body, auth }),
   patch: <T,>(path: string, body?: unknown, auth = false) =>
     request<T>(path, { method: "PATCH", body, auth }),
+  del: <T,>(path: string, auth = false) => request<T>(path, { method: "DELETE", auth }),
   upload: <T,>(path: string, formData: FormData) =>
     request<T>(path, { method: "POST", formData, auth: true }),
   /** Fetch a protected binary (an encrypted document) as an object URL. */

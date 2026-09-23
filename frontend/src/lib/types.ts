@@ -21,6 +21,43 @@ export type TokenPair = {
   user: User;
 };
 
+/** Admin is deliberately absent — it can't be self-registered. */
+export type SignupRole = "client" | "specialist";
+
+export type SignupPayload = {
+  role: SignupRole;
+  first_name: string;
+  last_name: string;
+  email: string;
+  password: string;
+  accept_terms: boolean;
+  /** Client-only: carried onto the client file the backend opens. */
+  phone?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+};
+
+export type SignupResponse = {
+  status: "active" | "pending_approval";
+  message: string;
+  /** Null for a specialist — the account can't sign in until it's approved. */
+  session: TokenPair | null;
+};
+
+export type StaffMember = {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  role: UserRole;
+  active: boolean;
+  self_registered: boolean;
+  /** Null on a request still awaiting a decision. */
+  approved_at?: string | null;
+  created_at?: string | null;
+  last_login_at?: string | null;
+};
+
 // --- assessment ------------------------------------------------------------
 
 export type AssessmentPayload = {

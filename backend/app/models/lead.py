@@ -16,6 +16,42 @@ from app.models.common import (
     ScoreRange,
 )
 
+#: Assessment answers an admin may correct from the CRM, mapped to the label
+#: used when the change is written to the activity log.
+LEAD_DETAIL_FIELDS: dict[str, str] = {
+    "first_name": "first name",
+    "last_name": "last name",
+    "email": "email",
+    "phone": "phone",
+    "state": "state",
+    "zip_code": "ZIP code",
+    "concerns": "what they need help with",
+    "goals": "credit goals",
+    "score_range": "score range",
+    "bureaus": "bureaus",
+    "negative_accounts": "negative accounts",
+    "has_recent_report": "recent report",
+    "notes": "their notes",
+}
+
+#: Of those, the ones that must always hold a value — a null is ignored rather
+#: than wiping an answer the pipeline depends on.
+LEAD_REQUIRED_FIELDS: frozenset[str] = frozenset(
+    {
+        "first_name",
+        "last_name",
+        "email",
+        "phone",
+        "state",
+        "zip_code",
+        "concerns",
+        "goals",
+        "score_range",
+        "bureaus",
+        "status",
+    }
+)
+
 US_STATES: dict[str, str] = {
     "AL": "Alabama", "AK": "Alaska", "AZ": "Arizona", "AR": "Arkansas",
     "CA": "California", "CO": "Colorado", "CT": "Connecticut", "DE": "Delaware",
@@ -34,6 +70,32 @@ US_STATES: dict[str, str] = {
 
 _ZIP_RE = re.compile(r"^\d{5}(-\d{4})?$")
 _PHONE_DIGITS_RE = re.compile(r"\D")
+
+
+# Shared by the public intake form and the admin's correction form, so a lead
+# edited in the CRM is stored exactly as the wizard would have stored it.
+
+
+def normalize_state(value: str) -> str:
+    code = value.upper()
+    if code not in US_STATES:
+        raise ValueError("Enter a valid U.S. state.")
+    return code
+
+
+def normalize_zip(value: str) -> str:
+    if not _ZIP_RE.match(value):
+        raise ValueError("Enter a valid 5-digit ZIP code.")
+    return value
+
+
+def normalize_phone(value: str) -> str:
+    digits = _PHONE_DIGITS_RE.sub("", value)
+    if len(digits) == 11 and digits.startswith("1"):
+        digits = digits[1:]
+    if len(digits) != 10:
+        raise ValueError("Enter a valid 10-digit U.S. phone number.")
+    return f"({digits[0:3]}) {digits[3:6]}-{digits[6:]}"
 
 
 class AssessmentSubmission(ApiModel):
@@ -67,27 +129,17 @@ class AssessmentSubmission(ApiModel):
     @field_validator("state")
     @classmethod
     def _valid_state(cls, value: str) -> str:
-        code = value.upper()
-        if code not in US_STATES:
-            raise ValueError("Enter a valid U.S. state.")
-        return code
+        return normalize_state(value)
 
     @field_validator("zip_code")
     @classmethod
     def _valid_zip(cls, value: str) -> str:
-        if not _ZIP_RE.match(value):
-            raise ValueError("Enter a valid 5-digit ZIP code.")
-        return value
+        return normalize_zip(value)
 
     @field_validator("phone")
     @classmethod
     def _valid_phone(cls, value: str) -> str:
-        digits = _PHONE_DIGITS_RE.sub("", value)
-        if len(digits) == 11 and digits.startswith("1"):
-            digits = digits[1:]
-        if len(digits) != 10:
-            raise ValueError("Enter a valid 10-digit U.S. phone number.")
-        return f"({digits[0:3]}) {digits[3:6]}-{digits[6:]}"
+        return normalize_phone(value)
 
     @field_validator("consent_contact")
     @classmethod
@@ -143,10 +195,49 @@ class LeadDetail(LeadSummary):
 
 
 class LeadUpdate(ApiModel):
+    """A partial update to a lead.
+
+    Alongside the pipeline fields, staff can correct the answers the client
+    gave in the wizard — a mistyped email or the wrong state would otherwise
+    strand the lead until they submitted the whole assessment again. Only the
+    fields present in the request body are written; ``consent_contact`` is
+    deliberately absent, because consent is the client's to give.
+    """
+
     status: LeadStatus | None = None
     assigned_to: str | None = None
     tags: list[str] | None = None
     next_follow_up_at: datetime | None = None
+
+    # Assessment answers, validated exactly as the intake form validates them.
+    first_name: str | None = Field(default=None, min_length=1, max_length=60)
+    last_name: str | None = Field(default=None, min_length=1, max_length=60)
+    email: EmailStr | None = None
+    phone: str | None = Field(default=None, min_length=7, max_length=25)
+    state: str | None = Field(default=None, min_length=2, max_length=2)
+    zip_code: str | None = Field(default=None, min_length=5, max_length=10)
+    concerns: list[ConcernType] | None = Field(default=None, min_length=1)
+    goals: list[CreditGoal] | None = Field(default=None, min_length=1)
+    score_range: ScoreRange | None = None
+    bureaus: list[Bureau] | None = None
+    negative_accounts: str | None = Field(default=None, max_length=30)
+    has_recent_report: bool | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+
+    @field_validator("state")
+    @classmethod
+    def _valid_state(cls, value: str | None) -> str | None:
+        return normalize_state(value) if value else None
+
+    @field_validator("zip_code")
+    @classmethod
+    def _valid_zip(cls, value: str | None) -> str | None:
+        return normalize_zip(value) if value else None
+
+    @field_validator("phone")
+    @classmethod
+    def _valid_phone(cls, value: str | None) -> str | None:
+        return normalize_phone(value) if value else None
 
 
 class LeadNoteCreate(ApiModel):

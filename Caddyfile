@@ -1,0 +1,49 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Canonical host is the apex. www redirects rather than serving a second copy:
+# auth tokens live in localStorage, which is origin-scoped, so serving both
+# would split sessions between them.
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	# The API is served from the same origin as the app, so browser requests to
+	# /api/v1/* are not cross-origin and need no CORS preflight.
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /health {
+		reverse_proxy backend:8000
+	}
+
+	handle /docs* {
+		reverse_proxy backend:8000
+	}
+
+	handle /openapi.json {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+		-Server
+	}
+
+	# 15 MB upload ceiling in the API; give the proxy a little headroom.
+	request_body {
+		max_size 20MB
+	}
+}
