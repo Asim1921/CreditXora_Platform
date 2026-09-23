@@ -8,7 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.core.deps import get_db, require_staff
+from app.core.deps import get_db, require_admin, require_staff
 from app.core.security import generate_temp_password, hash_password
 from app.models.client import (
     ClientNoteCreate,
@@ -38,6 +38,8 @@ from app.models.common import (
     utcnow,
 )
 from app.models.lead import (
+    LEAD_DETAIL_FIELDS,
+    LEAD_REQUIRED_FIELDS,
     LeadConvertRequest,
     LeadConvertResponse,
     LeadDetail,
@@ -45,7 +47,7 @@ from app.models.lead import (
     LeadSummary,
     LeadUpdate,
 )
-from app.models.user import AuthenticatedUser
+from app.models.user import AuthenticatedUser, StaffMember
 from app.services.activity import list_activity, log_activity
 from app.services.clients import build_bureau_status, build_client_profile, build_journey
 from app.services.notifications import notify, notify_client
@@ -88,6 +90,15 @@ def _lead_summary(doc: dict, names: dict[str, str]) -> LeadSummary:
         updated_at=doc.get("updated_at", doc["created_at"]),
         converted_client_id=doc.get("converted_client_id"),
     )
+
+
+def _changed(new: Any, old: Any) -> bool:
+    """Whether a submitted answer differs from the stored one. Multi-select
+    answers are compared as sets, so re-ticking the same boxes in a different
+    order isn't logged as a correction."""
+    if isinstance(new, list) or isinstance(old, list):
+        return sorted(new or []) != sorted(old or [])
+    return new != old
 
 
 # --- overview --------------------------------------------------------------
@@ -230,6 +241,12 @@ async def update_lead(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found.")
 
     updates = payload.model_dump(exclude_unset=True)
+    # A null for an answer the pipeline relies on is a no-op, not a wipe.
+    updates = {
+        field: value
+        for field, value in updates.items()
+        if value is not None or field not in LEAD_REQUIRED_FIELDS
+    }
     if not updates:
         names = await _specialist_names(db, {existing.get("assigned_to")})
         return _lead_summary(existing, names)
@@ -262,9 +279,63 @@ async def update_lead(
             actor_id=user.id,
         )
 
+    corrected = [
+        label
+        for field, label in LEAD_DETAIL_FIELDS.items()
+        if field in updates and _changed(updates[field], existing.get(field))
+    ]
+    if corrected:
+        await log_activity(
+            db,
+            subject_id=lead_id,
+            subject_type="lead",
+            activity_type=ActivityType.NOTE_ADDED,
+            summary=f"Assessment answers corrected: {', '.join(corrected)}.",
+            actor_name=user.full_name,
+            actor_id=user.id,
+        )
+
     updated = await db.leads.find_one({"_id": oid})
     names = await _specialist_names(db, {updated.get("assigned_to")})
     return _lead_summary(updated, names)
+
+
+@router.delete("/leads/{lead_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_lead(
+    lead_id: str,
+    user: AuthenticatedUser = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> None:
+    """Remove a lead that should never have entered the pipeline — a duplicate,
+    a test entry or spam. A converted lead is kept, because its client file
+    still refers back to it; close the client record instead."""
+    oid = to_object_id(lead_id)
+    doc = await db.leads.find_one({"_id": oid}) if oid else None
+    if doc is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found.")
+    if doc.get("converted_client_id"):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "This lead has been converted to a client, so it can't be deleted. "
+                "Work from the client file instead."
+            ),
+        )
+
+    name = f"{doc.get('first_name', '')} {doc.get('last_name', '')}".strip()
+    await db.leads.delete_one({"_id": oid})
+    await db.activities.delete_many({"subject_id": lead_id, "subject_type": "lead"})
+    # Written after the lead's own history is cleared, so the deletion itself
+    # survives as an audit record.
+    await log_activity(
+        db,
+        subject_id=lead_id,
+        subject_type="lead_deleted",
+        activity_type=ActivityType.STATUS_CHANGED,
+        summary=f"Lead deleted: {name or doc.get('email', lead_id)} ({doc.get('reference', '—')}).",
+        actor_name=user.full_name,
+        actor_id=user.id,
+    )
 
 
 @router.post("/leads/{lead_id}/notes", status_code=status.HTTP_201_CREATED)
@@ -809,6 +880,170 @@ async def list_specialists(db: AsyncIOMotorDatabase = Depends(get_db)) -> list[d
         }
         async for doc in cursor
     ]
+
+
+def _staff_member(record: dict) -> StaffMember:
+    return StaffMember(
+        id=str(record["_id"]),
+        email=record["email"],
+        first_name=record.get("first_name", ""),
+        last_name=record.get("last_name", ""),
+        role=record.get("role", UserRole.SPECIALIST.value),
+        active=record.get("active", True),
+        self_registered=record.get("self_registered", False),
+        approved_at=record.get("approved_at"),
+        created_at=record.get("created_at"),
+        last_login_at=record.get("last_login_at"),
+    )
+
+
+async def _staff_record(db: AsyncIOMotorDatabase, user_id: str) -> dict:
+    """Load a staff user, refusing ids that aren't staff at all."""
+    oid = to_object_id(user_id)
+    record = await db.users.find_one({"_id": oid}) if oid else None
+    if record is None or record.get("role") not in (
+        UserRole.ADMIN.value,
+        UserRole.SPECIALIST.value,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Staff member not found."
+        )
+    return record
+
+
+@router.get("/staff", response_model=list[StaffMember])
+async def list_staff(db: AsyncIOMotorDatabase = Depends(get_db)) -> list[StaffMember]:
+    """Every admin and specialist, including accounts awaiting approval."""
+    cursor = db.users.find(
+        {"role": {"$in": [UserRole.ADMIN.value, UserRole.SPECIALIST.value]}}
+    ).sort("created_at", -1)
+    return [_staff_member(doc) async for doc in cursor]
+
+
+@router.post("/staff/{user_id}/approve", response_model=StaffMember)
+async def approve_staff(
+    user_id: str,
+    user: AuthenticatedUser = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> StaffMember:
+    """Activate a specialist account. Administrators only — this grants access
+    to every client file, document and dispute."""
+    record = await _staff_record(db, user_id)
+    if record.get("active", True):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This account is already active.",
+        )
+
+    now = utcnow()
+    await db.users.update_one(
+        {"_id": record["_id"]},
+        {"$set": {"active": True, "approved_at": now, "approved_by": user.id}},
+    )
+    record = {**record, "active": True, "approved_at": now}
+
+    name = f"{record.get('first_name', '')} {record.get('last_name', '')}".strip()
+    await notify(
+        db,
+        recipient=str(record["_id"]),
+        title="Your Creditxora specialist account is approved",
+        body=(
+            f"Hi {record.get('first_name', '')},\n\n"
+            "Your specialist account has been approved. You can now sign in to the "
+            "Creditxora dashboard.\n\n"
+            "Client files contain sensitive personal and financial information — "
+            "access only the files you are working on."
+        ),
+        kind="staff",
+        link="/admin",
+        email_to=record["email"],
+    )
+    await log_activity(
+        db,
+        subject_id=str(record["_id"]),
+        subject_type="staff",
+        activity_type=ActivityType.STATUS_CHANGED,
+        summary=f"Specialist account approved for {name or record['email']}.",
+        actor_name=user.full_name,
+        actor_id=user.id,
+    )
+    return _staff_member(record)
+
+
+@router.post("/staff/{user_id}/revoke", response_model=StaffMember)
+async def revoke_staff(
+    user_id: str,
+    user: AuthenticatedUser = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> StaffMember:
+    """Deactivate a staff account. Existing tokens stop working immediately —
+    the auth dependency reloads the user on every request."""
+    record = await _staff_record(db, user_id)
+    if str(record["_id"]) == user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You can't deactivate your own account.",
+        )
+    if not record.get("active", True):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This account is already inactive.",
+        )
+
+    await db.users.update_one(
+        {"_id": record["_id"]},
+        {"$set": {"active": False, "deactivated_at": utcnow(), "deactivated_by": user.id}},
+    )
+    record = {**record, "active": False}
+
+    name = f"{record.get('first_name', '')} {record.get('last_name', '')}".strip()
+    await log_activity(
+        db,
+        subject_id=str(record["_id"]),
+        subject_type="staff",
+        activity_type=ActivityType.STATUS_CHANGED,
+        summary=f"Staff access revoked for {name or record['email']}.",
+        actor_name=user.full_name,
+        actor_id=user.id,
+    )
+    return _staff_member(record)
+
+
+@router.delete("/staff/{user_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def decline_staff(
+    user_id: str,
+    user: AuthenticatedUser = Depends(require_admin),
+    db: AsyncIOMotorDatabase = Depends(get_db),
+) -> None:
+    """Clear a specialist request that should never have been made. Only ever
+    removes an account that was self-registered, never approved and never
+    active, so there is nothing else in the database referring to it."""
+    record = await _staff_record(db, user_id)
+    if (
+        record.get("role") != UserRole.SPECIALIST.value
+        or record.get("active", True)
+        or record.get("approved_at") is not None
+        or not record.get("self_registered")
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                "Only a pending specialist request can be declined. Deactivate an "
+                "approved account instead."
+            ),
+        )
+
+    name = f"{record.get('first_name', '')} {record.get('last_name', '')}".strip()
+    await db.users.delete_one({"_id": record["_id"]})
+    await log_activity(
+        db,
+        subject_id=str(record["_id"]),
+        subject_type="staff",
+        activity_type=ActivityType.STATUS_CHANGED,
+        summary=f"Specialist request declined for {name or record['email']}.",
+        actor_name=user.full_name,
+        actor_id=user.id,
+    )
 
 
 @router.get("/notifications")

@@ -588,6 +588,21 @@ export const MAIN_NAV = [
   { href: "/contact", label: "Contact" },
 ] as const;
 
+// --- Social ----------------------------------------------------------------
+
+export const SOCIAL_LINKS = [
+  { key: "tiktok", label: "TikTok", href: "https://www.tiktok.com/@creditxora" },
+  { key: "instagram", label: "Instagram", href: "https://www.instagram.com/creditxora1/" },
+  { key: "x", label: "X", href: "https://x.com/Creditxora" },
+  {
+    key: "facebook",
+    label: "Facebook",
+    href: "https://www.facebook.com/share/18FBuE97nC/?mibextid=wwXIfr",
+  },
+] as const;
+
+export type SocialKey = (typeof SOCIAL_LINKS)[number]["key"];
+
 // --- Assessment options ----------------------------------------------------
 
 export const CONCERN_OPTIONS = [

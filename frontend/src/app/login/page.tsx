@@ -137,7 +137,16 @@ function LoginView() {
           </form>
 
           <p className="mt-6 text-center text-sm text-muted">
-            Not a client yet?{" "}
+            Don&apos;t have an account?{" "}
+            <Link
+              href="/signup"
+              className="font-semibold text-brand-700 underline underline-offset-2"
+            >
+              Create one
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-sm text-muted">
+            Not sure yet?{" "}
             <Link
               href="/get-started"
               className="font-semibold text-brand-700 underline underline-offset-2"

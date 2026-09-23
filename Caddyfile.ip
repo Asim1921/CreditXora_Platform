@@ -1,0 +1,47 @@
+# Temporary config for reaching the stack on the raw IP, before DNS exists.
+# Public CAs do not issue certs for bare IPs, so HTTPS here uses Caddy's local
+# CA and browsers will warn. Swap to ./Caddyfile once the domain resolves.
+
+{
+	auto_https disable_redirects
+	# Clients connecting to a bare IP send no SNI, so Caddy has nothing to match
+	# a certificate against and aborts the handshake. Assume this name instead.
+	default_sni {$DOMAIN}
+}
+
+(app) {
+	encode zstd gzip
+
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	handle /health {
+		reverse_proxy backend:8000
+	}
+
+	handle /docs* {
+		reverse_proxy backend:8000
+	}
+
+	handle /openapi.json {
+		reverse_proxy backend:8000
+	}
+
+	handle {
+		reverse_proxy frontend:3000
+	}
+
+	request_body {
+		max_size 20MB
+	}
+}
+
+http://{$DOMAIN} {
+	import app
+}
+
+https://{$DOMAIN} {
+	tls internal
+	import app
+}

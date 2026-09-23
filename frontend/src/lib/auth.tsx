@@ -11,13 +11,19 @@ import {
 } from "react";
 
 import { api, tokenStore } from "@/lib/api";
-import type { TokenPair, User } from "@/lib/types";
+import type { SignupPayload, SignupResponse, TokenPair, User } from "@/lib/types";
 
 type AuthState = {
   user: User | null;
   /** True until the stored session has been checked on first mount. */
   loading: boolean;
   signIn: (email: string, password: string) => Promise<User>;
+  /**
+   * Creates an account. A client is signed in on the spot; a specialist is
+   * queued for admin approval and gets no session, so the caller must read
+   * `status` rather than assume it can navigate to a dashboard.
+   */
+  signUp: (payload: SignupPayload) => Promise<SignupResponse>;
   signOut: () => void;
   refreshUser: () => Promise<void>;
 };
@@ -68,6 +74,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return tokens.user;
   }, []);
 
+  const signUp = useCallback(async (payload: SignupPayload) => {
+    const result = await api.post<SignupResponse>("/auth/signup", payload);
+    if (result.session) {
+      tokenStore.save(
+        result.session.access_token,
+        result.session.refresh_token,
+        result.session.user,
+      );
+      setUser(result.session.user);
+    }
+    return result;
+  }, []);
+
   const signOut = useCallback(() => {
     tokenStore.clear();
     setUser(null);
@@ -84,8 +103,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, loading, signIn, signOut, refreshUser }),
-    [user, loading, signIn, signOut, refreshUser],
+    () => ({ user, loading, signIn, signUp, signOut, refreshUser }),
+    [user, loading, signIn, signUp, signOut, refreshUser],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

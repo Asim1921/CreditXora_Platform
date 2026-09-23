@@ -1,0 +1,84 @@
+services:
+  mongo:
+    image: mongo:7
+    container_name: creditxora-mongo
+    restart: unless-stopped
+    # No published ports: only the backend reaches Mongo, over the compose network.
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: creditxora-backend
+    restart: unless-stopped
+    environment:
+      ENVIRONMENT: production
+      MONGODB_URI: mongodb://${MONGO_USER}:${MONGO_PASSWORD}@mongo:27017/?authSource=admin
+      MONGODB_DB: creditxora
+      SECRET_KEY: ${SECRET_KEY}
+      STORAGE_ENCRYPTION_KEY: ${STORAGE_ENCRYPTION_KEY}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+      ADMIN_NOTIFICATION_EMAIL: ${ADMIN_NOTIFICATION_EMAIL}
+      SEED_DEMO_DATA: "false"
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_FROM_NAME: ${SMTP_FROM_NAME:-Creditxora}
+      SMTP_FROM_EMAIL: ${SMTP_FROM_EMAIL:-}
+    volumes:
+      # Encrypted uploads and the Fernet .storage_key live here. Losing this
+      # volume makes every previously uploaded document undecryptable.
+      - backend-var:/app/var
+    depends_on:
+      mongo:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Empty => the client calls /api/v1/... relative to whatever origin it
+        # was served from, so one image works on the IP and on the domain.
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL-}
+    container_name: creditxora-frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: creditxora-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN}
+      ACME_EMAIL: ${ACME_EMAIL}
+    volumes:
+      - ${CADDYFILE:-./Caddyfile}:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+      - backend
+
+volumes:
+  mongo-data:
+  backend-var:
+  caddy-data:
+  caddy-config:

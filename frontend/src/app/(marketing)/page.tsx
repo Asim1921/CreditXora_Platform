@@ -125,6 +125,17 @@ function PortalPreview() {
               Existing client sign in
             </ButtonLink>
           </div>
+
+          <p className="mt-4 text-sm text-navy-200/75">
+            New here?{" "}
+            <Link
+              href="/signup"
+              className="font-semibold text-brand-300 underline underline-offset-2"
+            >
+              Create your account
+            </Link>{" "}
+            to upload your reports straight away.
+          </p>
         </div>
 
         <JourneyVisual />

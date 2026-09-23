@@ -872,7 +872,7 @@ function SuccessPanel({ receipt }: { receipt: AssessmentReceipt }) {
         <ButtonLink href="/resources" variant="outline">
           Read our credit guides
         </ButtonLink>
-        <ButtonLink href="/">Back to home</ButtonLink>
+        <ButtonLink href="/login">Sign in</ButtonLink>
       </div>
 
       <p className="mx-auto mt-8 max-w-lg text-xs leading-relaxed text-muted">
